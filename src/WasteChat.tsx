@@ -9,7 +9,7 @@ interface Message {
 const DISCLAIMER =
   "Disposal guidance can vary by location. Follow your local waste-management rules.";
 
-const API_URL = "http://localhost:5000/api/chat";
+const API_URL = "/api/chat";
 
 export default function WasteChat() {
   const [messages, setMessages] = useState<Message[]>([
@@ -17,7 +17,7 @@ export default function WasteChat() {
       id: 1,
       role: "assistant",
       text:
-        "Hi! I'm the WasteWise AI Assistant, powered by IBM watsonx.ai. Ask me about sorting, recycling, or disposing of waste items — for example, try \"How do I dispose of a plastic bottle?\" or \"What do I do with old batteries?\"",
+        "Hi! I'm the WasteWise AI Assistant, powered by Google Gemini 3.8 Flash. Ask me about sorting, recycling, or disposing of waste items — for example, try \"How do I dispose of a plastic bottle?\" or \"What do I do with old batteries?\"",
     },
   ]);
 

@@ -56,7 +56,7 @@ function App() {
       formData.append('image', imageFile)
 
       const response = await fetch(
-        'http://localhost:5000/api/analyze',
+        '/api/analyze',
         {
           method: 'POST',
           body: formData,
@@ -646,7 +646,7 @@ function App() {
 
                 </div>
 
-                {/* IBM AI notice */}
+                {/* AI provider notice */}
 
                 <div className="result-rai-notice">
 
@@ -654,9 +654,8 @@ function App() {
                     🤖
                   </span>
 
-                  AI analysis powered by IBM
-                  watsonx.ai using Llama 4
-                  Maverick. Results are
+                  AI analysis powered by Google
+                  Gemini 3.8 Flash. Results are
                   informational and may be
                   uncertain.
 
@@ -1388,7 +1387,7 @@ function App() {
 
           <span className="site-footer__copy">
             Supporting SDG 12 · Powered by
-            IBM watsonx.ai · Recommendations
+            Google Gemini 3.8 Flash · Recommendations
             are informational only
           </span>
 
