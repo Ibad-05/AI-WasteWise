@@ -4,7 +4,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const axios = require("axios");
+const Groq = require("groq-sdk");
 
 const app = express();
 
@@ -19,46 +19,27 @@ const upload = multer({
 });
 
 const PORT = process.env.PORT || 5000;
-const MODEL_ID = "gemini-3.8-flash";
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/interactions";
+const MODEL_ID = process.env.GROQ_MODEL || "qwen/qwen3.8-27b";
 
 // --------------------------------------------------
-// Gemini configuration
+// Groq configuration
 // --------------------------------------------------
 
-function getGeminiConfig() {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is missing from server/.env");
+function getGroqClient() {
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is missing from server/.env");
   }
 
-  return {
-    headers: {
-      "x-goog-api-key": process.env.GEMINI_API_KEY,
-      "Content-Type": "application/json",
-    },
-    timeout: 120000,
-  };
+  return new Groq({ apiKey: process.env.GROQ_API_KEY });
 }
 
 // --------------------------------------------------
-// Extract text from Interactions API response
+// Extract text from a Groq chat completion response
 // --------------------------------------------------
 
 function extractText(response) {
-  if (typeof response.data?.output_text === "string") {
-    return response.data.output_text.trim();
-  }
-
-  const steps = response.data?.steps || [];
-
-  return steps
-    .filter((step) => step.type === "model_output")
-    .flatMap((step) => step.content || [])
-    .filter((part) => part.type === "text" && typeof part.text === "string")
-    .map((part) => part.text)
-    .join("\n")
-    .trim();
+  const content = response.choices?.[0]?.message?.content;
+  return typeof content === "string" ? content.trim() : "";
 }
 
 function cleanJson(text) {
@@ -75,7 +56,7 @@ function cleanJson(text) {
 app.get("/", (req, res) => {
   res.json({
     message: "AI WasteWise Backend Running",
-    provider: "Google Gemini",
+    provider: "Groq",
     model: MODEL_ID,
   });
 });
@@ -142,33 +123,40 @@ Rules:
 
     const imageData = req.file.buffer.toString("base64");
 
-    console.info("[/api/analyze] Gemini request started", {
+    console.info("[/api/analyze] Groq request started", {
       model: MODEL_ID,
       mimeType: req.file.mimetype,
       imageBytes: req.file.size,
     });
 
-    const response = await axios.post(
-      GEMINI_URL,
-      {
-        model: MODEL_ID,
-        input: [
-          {
-            type: "text",
-            text: prompt,
-          },
-          {
-            type: "image",
-            data: imageData,
-            mime_type: req.file.mimetype,
-          },
-        ],
-      },
-      getGeminiConfig()
-    );
+    const response = await getGroqClient().chat.completions.create({
+      model: MODEL_ID,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: prompt,
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Identify and classify the waste item in this image.",
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${req.file.mimetype};base64,${imageData}`,
+              },
+            },
+          ],
+        },
+      ],
+    });
 
-    console.info("[/api/analyze] Gemini request completed", {
-      status: response.status,
+    console.info("[/api/analyze] Groq request completed", {
+      status: "completed",
       elapsedMs: Date.now() - requestStartedAt,
     });
 
@@ -176,16 +164,16 @@ Rules:
 
     if (!modelText) {
       console.error(
-        "Empty Gemini image response:",
-        JSON.stringify(response.data, null, 2)
+        "Empty Groq image response:",
+        JSON.stringify(response, null, 2)
       );
 
       return res.status(502).json({
-        error: "Gemini returned an empty response.",
+        error: "Groq returned an empty response.",
       });
     }
 
-    console.log("===== GEMINI IMAGE RESPONSE =====");
+    console.log("===== GROQ IMAGE RESPONSE =====");
     console.log(modelText);
     console.log("=================================");
 
@@ -194,7 +182,7 @@ Rules:
     try {
       result = JSON.parse(cleanJson(modelText));
     } catch (parseError) {
-      console.error("Could not parse Gemini response:", modelText);
+      console.error("Could not parse Groq response:", modelText);
 
       return res.status(502).json({
         error: "AI returned an unexpected response format.",
@@ -205,21 +193,25 @@ Rules:
       success: true,
       result,
       model: MODEL_ID,
-      provider: "Google Gemini",
+      provider: "Groq",
     });
   } catch (error) {
-    console.error("[/api/analyze] Gemini request failed", {
-      status: error.response?.status,
+    const status = error.status || error.response?.status;
+
+    console.error("[/api/analyze] Groq request failed", {
+      status,
       code: error.code,
       elapsedMs: Date.now() - requestStartedAt,
-      response: error.response?.data,
+      response: error.response?.data || error.error,
       message: error.message,
     });
 
-    return res.status(500).json({
-      error: "Failed to analyze the image.",
-      details:
-        error.response?.data?.error?.message || error.message,
+    return res.status(status === 429 ? 429 : 500).json({
+      error:
+        status === 429
+          ? "The AI service is rate limited. Please try again later."
+          : "Failed to analyze the image.",
+      details: error.response?.data?.error?.message || error.message,
     });
   }
 });
@@ -255,49 +247,72 @@ Keep answers focused on waste, recycling, sustainability,
 and environmental topics.
 `;
 
-    const response = await axios.post(
-      GEMINI_URL,
-      {
-        model: MODEL_ID,
-        system_instruction: systemPrompt,
-        generation_config: {
-          max_output_tokens: 600,
+    const history = Array.isArray(req.body?.history)
+      ? req.body.history
+          .filter(
+            (message) =>
+              (message?.role === "user" ||
+                message?.role === "assistant") &&
+              typeof message?.content === "string"
+          )
+          .map((message) => ({
+            role: message.role,
+            content: message.content.trim(),
+          }))
+          .filter((message) => message.content)
+      : [];
+
+    const response = await getGroqClient().chat.completions.create({
+      model: MODEL_ID,
+      max_tokens: 600,
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
         },
-        input: question.trim(),
-      },
-      getGeminiConfig()
-    );
+        ...history,
+        {
+          role: "user",
+          content: question.trim(),
+        },
+      ],
+    });
 
     const answer = extractText(response);
 
     if (!answer) {
       console.error(
-        "Empty Gemini chat response:",
-        JSON.stringify(response.data, null, 2)
+        "Empty Groq chat response:",
+        JSON.stringify(response, null, 2)
       );
 
       return res.status(502).json({
-        error: "Gemini returned an empty response.",
+        error: "Groq returned an empty response.",
       });
     }
 
-    console.log("===== GEMINI CHAT RESPONSE =====");
+    console.log("===== GROQ CHAT RESPONSE =====");
     console.log(answer);
     console.log("================================");
 
     return res.json({ answer });
   } catch (error) {
-    console.error("===== GEMINI CHAT API ERROR =====");
-    console.error("Status:", error.response?.status);
+    const status = error.status || error.response?.status;
+
+    console.error("===== GROQ CHAT API ERROR =====");
+    console.error("Status:", status);
     console.error(
       "Response:",
-      JSON.stringify(error.response?.data, null, 2)
+      JSON.stringify(error.response?.data || error.error, null, 2)
     );
     console.error("Message:", error.message);
     console.error("=================================");
 
-    return res.status(500).json({
-      error: "Failed to get a response from the AI assistant.",
+    return res.status(status === 429 ? 429 : 500).json({
+      error:
+        status === 429
+          ? "The AI service is rate limited. Please try again later."
+          : "Failed to get a response from the AI assistant.",
       details:
         error.response?.data?.error?.message || error.message,
     });
@@ -331,5 +346,5 @@ app.use((error, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`AI WasteWise backend running on port ${PORT}`);
-  console.log(`AI provider: Google Gemini (${MODEL_ID})`);
+  console.log(`AI provider: Groq (${MODEL_ID})`);
 });
