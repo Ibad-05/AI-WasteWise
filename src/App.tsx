@@ -41,7 +41,7 @@ function App() {
   )
 
   // --------------------------------------------------
-  // REAL IBM WATSONX AI ANALYSIS
+  // AI image analysis
   // --------------------------------------------------
 
   const handleAnalyze = async () => {
@@ -654,8 +654,8 @@ function App() {
                     🤖
                   </span>
 
-                  AI analysis powered by Google
-                  Gemini 3.8 Flash. Results are
+                  AI analysis powered by Groq.
+                  Results are
                   informational and may be
                   uncertain.
 
@@ -1387,7 +1387,7 @@ function App() {
 
           <span className="site-footer__copy">
             Supporting SDG 12 · Powered by
-            Google Gemini 3.8 Flash · Recommendations
+            Groq · Recommendations
             are informational only
           </span>
 

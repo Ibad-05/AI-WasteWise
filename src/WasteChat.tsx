@@ -17,7 +17,7 @@ export default function WasteChat() {
       id: 1,
       role: "assistant",
       text:
-        "Hi! I'm the WasteWise AI Assistant, powered by Google Gemini 3.8 Flash. Ask me about sorting, recycling, or disposing of waste items — for example, try \"How do I dispose of a plastic bottle?\" or \"What do I do with old batteries?\"",
+        "Hi! I'm the WasteWise AI Assistant, powered by Groq. Ask me about sorting, recycling, or disposing of waste items — for example, try \"How do I dispose of a plastic bottle?\" or \"What do I do with old batteries?\"",
     },
   ]);
 
@@ -57,6 +57,10 @@ export default function WasteChat() {
         },
         body: JSON.stringify({
           question: trimmedQuestion,
+          history: messages.map(({ role, text }) => ({
+            role,
+            content: text,
+          })),
         }),
       });
 
@@ -326,8 +330,7 @@ export default function WasteChat() {
                 textAlign: "center",
               }}
             >
-              🤖 AI guidance powered by IBM watsonx.ai using Llama 4
-              Maverick.
+              🤖 AI guidance powered by Groq.
             </div>
           </div>
         </div>

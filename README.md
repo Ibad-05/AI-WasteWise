@@ -52,14 +52,13 @@ The system:
 
 AI WasteWise uses:
 
-- **IBM watsonx.ai**
-- **Meta Llama 4 Maverick** multimodal AI model
-- **IBM BOB** for AI-assisted development
+- **Groq API** with the official `groq-sdk`
+- **Qwen/Qwen3.8-27B** multimodal AI model
 - AI-assisted prompt engineering
 - Multimodal image analysis
 - Conversational AI
 
-The application uses IBM watsonx.ai to process waste images and generate structured waste identification and disposal guidance.
+The application uses Groq to process waste images and generate structured waste identification and disposal guidance.
 
 ---
 
@@ -72,9 +71,9 @@ Upload Waste Image
   ↓
 AI WasteWise Web Application
   ↓
-IBM watsonx.ai
+Groq API
   ↓
-Llama 4 Maverick
+Qwen/Qwen3.8-27B
   ↓
 Waste Identification
   ↓
@@ -83,3 +82,19 @@ Waste Classification
 Disposal Guidance + Explanation
   ↓
 User
+```
+
+## Environment variables
+
+Create `server/.env` from `server/.env.example`:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=qwen/qwen3.8-27b
+PORT=5000
+```
+
+Never commit a real API key. For Vercel, add `GROQ_API_KEY` and `GROQ_MODEL` in
+**Project Settings → Environment Variables** for the environments where the
+server runs, then redeploy. `GROQ_MODEL` can be changed to another currently
+supported Groq model.
